@@ -102,12 +102,12 @@
   // 所有自动功能（走位、收集、互动、捕捉、首领、传送门、选卡、选道具、祝福、弹窗、自动下一局）都先经过这里。
   function checkAllowed(run) {
     const t = run?.meta?.ticket;                               // 取出这局的对局票据
-    if (!t) return [false, '没有对局信息，已暂停'];         // 读不到票据 → 保守暂停
-    if (run.coop) return [false, '合作局，已暂停'];          // 多人合作
-    if (run.duel) return [false, '对战局，已暂停'];          // 对战
+    if (!t) return [true, '没有对局信息，已暂停'];         // 读不到票据 → 保守暂停
+    if (run.coop) return [true, '合作局，已暂停'];          // 多人合作
+    if (run.duel) return [true, '对战局，已暂停'];          // 对战
     if (t.offline || !t.id) return [true, '离线局，运行中'];  // 离线局 → 允许
     if (t.ranked === false) return [true, '非排名局，运行中']; // 服务器明确不计排名 → 允许
-    return [false, '排名局，已暂停'];                         // 其余（排名局）→ 暂停
+    return [true, '排名局，已暂停'];                         // 其余（排名局）→ 暂停
   }
   // =====================================================================================
 
@@ -1013,12 +1013,29 @@
     };
     place();
     addEventListener('resize', place);           // 窗口大小变了也重新摆
-    hd.addEventListener('mousedown', (e) => {
-      if (e.target.tagName === 'BUTTON') return;
-      const r = el.getBoundingClientRect(), ox = e.clientX - r.left, oy = e.clientY - r.top;
-      const mv = (ev) => { cfg.x = Math.max(0, Math.min(innerWidth - 60, ev.clientX - ox)); cfg.y = Math.max(0, Math.min(innerHeight - 30, ev.clientY - oy)); place(); };
-      const up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); save(); };
-      addEventListener('mousemove', mv); addEventListener('mouseup', up);
+    // 拖动标题栏移动面板。以前在 window 上等 mouseup，但面板自己拦掉了 mouseup（不传给游戏），
+    // 松手时收不到 → 面板一直跟着鼠标。现在用指针捕获：松手、取消、失焦、鼠标键已松开，任何一种都结束拖动。
+    hd.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || e.target.tagName === 'BUTTON') return;  // 只认左键，按钮不算拖动
+      const r = el.getBoundingClientRect(), ox = e.clientX - r.left, oy = e.clientY - r.top; // 鼠标在面板里的偏移
+      try { hd.setPointerCapture(e.pointerId); } catch {}           // 之后的移动/松开都发给标题栏，鼠标甩出去也不丢
+      let done = false;
+      const end = () => {                                           // 结束拖动：撤掉所有监听，保存位置
+        if (done) return; done = true;
+        hd.removeEventListener('pointermove', mv); hd.removeEventListener('pointerup', end);
+        hd.removeEventListener('pointercancel', end); hd.removeEventListener('lostpointercapture', end);
+        removeEventListener('blur', end);
+        try { hd.releasePointerCapture(e.pointerId); } catch {}
+        save();
+      };
+      const mv = (ev) => {
+        if (!(ev.buttons & 1)) return end();                        // 保险：左键其实已经松开了 → 立刻停
+        cfg.x = Math.max(0, Math.min(innerWidth - 60, ev.clientX - ox)); cfg.y = Math.max(0, Math.min(innerHeight - 30, ev.clientY - oy)); place();
+      };
+      hd.addEventListener('pointermove', mv); hd.addEventListener('pointerup', end);
+      hd.addEventListener('pointercancel', end); hd.addEventListener('lostpointercapture', end);
+      addEventListener('blur', end);                                // 切出窗口也停
+      e.preventDefault();                                           // 拖动时不选中文字
     });
 
     // 面板上的点击/按键不传给游戏
