@@ -102,12 +102,12 @@
   // 所有自动功能（走位、收集、互动、捕捉、首领、传送门、选卡、选道具、祝福、弹窗、自动下一局）都先经过这里。
   function checkAllowed(run) {
     const t = run?.meta?.ticket;                               // 取出这局的对局票据
-    if (!t) return [true, '没有对局信息，已暂停'];         // 读不到票据 → 保守暂停
-    if (run.coop) return [true, '合作局，已暂停'];          // 多人合作
-    if (run.duel) return [true, '对战局，已暂停'];          // 对战
+    if (!t) return [false, '没有对局信息，已暂停'];        // 读不到票据 → 保守暂停
+    if (run.coop) return [false, '合作局，已暂停'];         // 多人合作
+    if (run.duel) return [false, '对战局，已暂停'];         // 对战
     if (t.offline || !t.id) return [true, '离线局，运行中'];  // 离线局 → 允许
     if (t.ranked === false) return [true, '非排名局，运行中']; // 服务器明确不计排名 → 允许
-    return [true, '排名局，已暂停'];                         // 其余（排名局）→ 暂停
+    return [false, '排名局，已暂停'];                        // 其余（排名局）→ 暂停
   }
   // =====================================================================================
 
